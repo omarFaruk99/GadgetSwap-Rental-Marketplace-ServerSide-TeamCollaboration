@@ -148,16 +148,89 @@ async function run() {
         app.post('/users/add_new_user', async (req, res) => {
             try {
                 const { newUser } = req.body;
-                const result = await userCollection.insertOne(newUser);
-                if (result) {
 
-
-
-
-                    res.send({ status: 201, message: "User created successfully." });
+                // Input validation
+                if (!newUser || !newUser.email) {
+                    return res.status(400).send({ status: 400, message: "newUser and email are required!" });
                 }
+
+                // Check if user already exists
+                const existingUser = await userCollection.findOne({ email: newUser?.email });
+                if (existingUser) {
+                    return res.status(409).send({ status: 409, message: "User with this email already exists!" });
+                }
+
+                // Insert new user
+                const userResult = await userCollection.insertOne(newUser);
+                if (!userResult.insertedId) {
+                    return res.status(500).send({ status: 500, message: "Failed to insert user!" });
+                }
+
+                // Insert message chain
+                const messageChain = {
+                    user_email: newUser.email,
+                    message_chain: []
+                };
+                const messageResult = await messagesCollection.insertOne(messageChain);
+                if (!messageResult.insertedId) {
+                    await userCollection.deleteOne({ _id: userResult.insertedId });
+                    return res.status(500).send({ status: 500, message: "Failed to create message chain!" });
+                }
+
+                // Update user with messageChain_id
+                await userCollection.updateOne(
+                    { _id: userResult.insertedId },
+                    { $set: { messageChain_id: messageResult.insertedId.toString() } }
+                );
+
+                // Insert notification chain
+                const notificationChain = {
+                    user_email: newUser.email,
+                    notification_chain: []
+                };
+                const notificationResult = await notificationsCollection.insertOne(notificationChain);
+                if (!notificationResult.insertedId) {
+                    await userCollection.deleteOne({ _id: userResult.insertedId });
+                    await messagesCollection.deleteOne({ _id: messageResult.insertedId });
+                    return res.status(500).send({ status: 500, message: "Failed to create notification chain!" });
+                }
+
+                // Update user with notificationChain_id
+                await userCollection.updateOne(
+                    { _id: userResult.insertedId },
+                    { $set: { notificationChain_id: notificationResult.insertedId.toString() } }
+                );
+
+                // Insert activity history chain
+                const activityHistoryChain = {
+                    user_email: newUser.email,
+                    activityHistory_chain: []
+                };
+                const activityHistoryResult = await activityHistoriesCollection.insertOne(activityHistoryChain);
+                if (!activityHistoryResult.insertedId) {
+                    await userCollection.deleteOne({ _id: userResult.insertedId });
+                    await messagesCollection.deleteOne({ _id: messageResult.insertedId });
+                    await notificationsCollection.deleteOne({ _id: notificationResult.insertedId });
+                    return res.status(500).send({ status: 500, message: "Failed to create activity history chain!" });
+                }
+
+                // Update user with activityHistoryChain_id
+                await userCollection.updateOne(
+                    { _id: userResult.insertedId },
+                    { $set: { activityHistoryChain_id: activityHistoryResult.insertedId.toString() } }
+                );
+
+                return res.send({
+                    status: 201,
+                    data: { userId: userResult.insertedId },
+                    message: "User created successfully."
+                });
             } catch (error) {
-                res.send({ status: 500, message: "Internal Server Error" });
+                console.error(error);
+                if (error.message.includes("already exists")) {
+                    return res.send({ status: 409, message: "User with this email already exists!" });
+                }
+                return res.send({ status: 500, message: error.message || "Internal Server Error" });
             }
         });
 
@@ -183,6 +256,43 @@ async function run() {
             // res.status(200).send(result);
             res.send({ status: 200, data: result, message: 'Login successful!' });
         })
+
+
+        // TODO: JWT verification will be added later.
+        app.post('/users/get_full_user_profile_details', async (req, res) => {
+            try {
+                const { userEmail } = req.body;
+
+                // Input validation
+                if (!userEmail) {
+                    return res.send({ status: 400, message: "Email is required!" });
+                }
+
+                // Verifying user authenticity
+                /*const { decoded_email } = req;
+                if (userEmail !== decoded_email) {
+                    return res.send({ status: 403, message: "Forbidden access, email mismatch!" });
+                }*/
+
+                // Find the user
+                const userQuery = { email: userEmail };
+                const userResult = await userCollection.findOne(userQuery);
+
+                // Check if user exists
+                if (!userResult) {
+                    return res.send({ status: 404, message: "User not found!" });
+                }
+
+                // Filter sensitive data (can also be password, tokens)
+                const { _id, uid, ...filteredUserData } = userResult;
+
+                return res.send({ status: 200, data: filteredUserData, message: "Full user details fetched successfully!" });
+
+            } catch (error) {
+                console.error(error);
+                return res.send({ status: 500, message: "Something went wrong!" });
+            }
+        });
 
 
         // TODO: JWT verification will be added later.
