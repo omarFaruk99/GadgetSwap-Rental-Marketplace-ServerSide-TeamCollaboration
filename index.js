@@ -169,6 +169,8 @@ async function run() {
                 // Insert message chain
                 const messageChain = {
                     user_email: newUser.email,
+                    total_count: 0,
+                    unread_count: 0,
                     message_chain: []
                 };
                 const messageResult = await messagesCollection.insertOne(messageChain);
@@ -186,6 +188,8 @@ async function run() {
                 // Insert notification chain
                 const notificationChain = {
                     user_email: newUser.email,
+                    total_count: 0,
+                    unread_count: 0,
                     notification_chain: []
                 };
                 const notificationResult = await notificationsCollection.insertOne(notificationChain);
@@ -204,6 +208,7 @@ async function run() {
                 // Insert activity history chain
                 const activityHistoryChain = {
                     user_email: newUser.email,
+                    total_count: 0,
                     activityHistory_chain: []
                 };
                 const activityHistoryResult = await activityHistoriesCollection.insertOne(activityHistoryChain);
@@ -512,6 +517,41 @@ async function run() {
 
         /* CREATING (IF NOT PRESENT) / CONNECTING THE COLLECTION NAMED "messagesCollection" AND ACCESS IT */
         const messagesCollection = database.collection("messagesCollection");
+
+
+        // TODO: JWT will be implemented later
+        app.post('/messages/get_all_messages_of_a_user', async (req, res) => {
+            try {
+                const { userEmail } = req.body;
+
+                // Input validation
+                if (!userEmail) {
+                    return res.status(400).send({ status: 400, message: "User email is missing!" });
+                }
+
+                // Verifying user authenticity
+                /*const { decoded_email } = req;
+                if (userEmail !== decoded_email) {
+                    return res.status(403).send({ status: 403, message: "Forbidden access, email mismatch!" });
+                }*/
+
+                // Find the user's message chain
+                const messageChainQuery = { user_email: userEmail };
+                const messageChainResult = await messagesCollection.findOne(messageChainQuery);
+
+                // If message chain not found
+                if (!messageChainResult) {
+                    return res.status(404).send({ status: 404, message: "Message chain not found!" });
+                }
+
+                // Return the whole message chain
+                return res.send({ status: 200, data: messageChainResult, message: "Messages fetched successfully!" });
+
+            } catch (error) {
+                console.error('Failed to fetch messages! :', error);
+                return res.send({ status: 500, message: "Failed to fetch messages!" });
+            }
+        });
 
 
 
