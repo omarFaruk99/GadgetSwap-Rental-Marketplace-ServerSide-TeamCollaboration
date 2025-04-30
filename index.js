@@ -258,8 +258,7 @@ async function run() {
         })
 
 
-        // TODO: JWT verification will be added later.
-        app.post('/users/get_full_user_profile_details', async (req, res) => {
+        app.post('/users/get_full_user_profile_details', verifyJWT, async (req, res) => {
             try {
                 const { userEmail } = req.body;
 
@@ -269,10 +268,10 @@ async function run() {
                 }
 
                 // Verifying user authenticity
-                /*const { decoded_email } = req;
+                const { decoded_email } = req;
                 if (userEmail !== decoded_email) {
                     return res.send({ status: 403, message: "Forbidden access, email mismatch!" });
-                }*/
+                }
 
                 // Find the user
                 const userQuery = { email: userEmail };
@@ -295,8 +294,7 @@ async function run() {
         });
 
 
-        // TODO: JWT verification will be added later.
-        app.patch('/users/add_or_remove_a_gadget_id_to_or_from_wishlist', async (req, res) => {
+        app.patch('/users/add_or_remove_a_gadget_id_to_or_from_wishlist', verifyJWT, async (req, res) => {
             try {
                 const { userEmail, gadgetId } = req.body;
 
@@ -306,10 +304,10 @@ async function run() {
                 }
 
                 // Verifying user authenticity
-                /*const { decoded_email } = req;
+                const { decoded_email } = req;
                 if (userEmail !== decoded_email) {
                     return res.status(403).send({ status: 403, message: "Forbidden access, email mismatch!" });
-                }*/
+                }
 
                 // Find the user
                 const query = { email: userEmail };
@@ -447,22 +445,14 @@ async function run() {
             const query = { _id: new ObjectId(id) };
             const gadgetResult = await gadgetsCollection.findOne(query);
             if (gadgetResult) {
-                res.send({
-                    status: 200,
-                    data: gadgetResult,
-                    message: 'Gadget details by id fetched successfully!'
-                });
+                res.send({ status: 200, data: gadgetResult, message: 'Gadget details by id fetched successfully!' });
             } else {
-                res.send({
-                    status: 404,
-                    message: 'Failed to fetch Gadget details by id! Gadget not found!'
-                });
+                res.send({ status: 404, message: 'Failed to fetch Gadget details by id! Gadget not found!' });
             }
         });
 
 
-        // TODO: JWT verification will be added later.
-        app.post("/gadgets/get_gadget_details_of_a_wishlist_array", async (req, res) => {
+        app.post("/gadgets/get_gadget_details_of_a_wishlist_array", verifyJWT, async (req, res) => {
             try {
                 const { userEmail } = req.body;
 
@@ -472,10 +462,10 @@ async function run() {
                 }
 
                 // Verifying user authenticity
-                /*const { decoded_email } = req;
+                const { decoded_email } = req;
                 if (userEmail !== decoded_email) {
                     return res.status(403).send({ status: 403, message: "Forbidden access, email mismatch!" });
-                }*/
+                }
 
                 // Find the user
                 const userQuery = { email: userEmail };
