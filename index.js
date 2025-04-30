@@ -37,7 +37,7 @@ app.use(express.json());
 
 /* Parses incoming requests with URL-encoded payloads, typically used when data is sent from HTML forms.
 Setting extended: true enables parsing of nested objects, allowing for more complex form data structures. */
-app.use(express.urlencoded({extended: true}))
+app.use(express.urlencoded({ extended: true }))
 
 /* It allows the server to parse and handle cookies sent by the client in HTTP requests.
 After using cookieParser(), you can access cookies through req.cookies (for normal cookies) and req.signedCookies (for signed cookies) in your routes. */
@@ -55,13 +55,13 @@ const verifyJWT = (req, res, next) => {
 
     // If there is no JWT
     if (!token) {
-        return res.send({status: 401, message: "No token provided, authorization denied!"});
+        return res.send({ status: 401, message: "No token provided, authorization denied!" });
     }
 
     // Verify the JWT
     jwt.verify(token, process.env.ACCESS_JWT_SECRET, (error, decoded) => {
         if (error) {
-            return res.send({status: 402, message: "Invalid or expired token!"});
+            return res.send({ status: 402, message: "Invalid or expired token!" });
         }
         req.decoded_email = decoded?.data;
         next(); // Call the next middleware.
@@ -74,7 +74,7 @@ const verifyJWT = (req, res, next) => {
 
 /* MONGODB CONNECTIONS AND APIS --------------------------------------------------------------------------------------*/
 
-const {MongoClient, ServerApiVersion, ObjectId} = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 
 /* The URI points to a specific MongoDB cluster and includes options for retrying writes and setting the write concern. */
@@ -107,10 +107,10 @@ async function run() {
         /*====================================== AUTH RELATED APIs ===================================================*/
 
         app.post('/generate_jwt_and_get_token', async (req, res) => {
-            const {email} = req.body;
+            const { email } = req.body;
 
             //Generating JSON Web Token.
-            const token = jwt.sign({data: email}, process.env.ACCESS_JWT_SECRET, {expiresIn: '1h'});
+            const token = jwt.sign({ data: email }, process.env.ACCESS_JWT_SECRET, { expiresIn: '1h' });
             // console.log(token)
 
             //Setting JWT, at the client side, in the HTTP only cookie.
@@ -119,7 +119,7 @@ async function run() {
                 secure: process.env.NODE_ENVIRONMENT === 'production',                                                                      //Set false while in dev environment, and true while in production.
                 sameSite: process.env.NODE_ENVIRONMENT === 'production' ? 'none' : 'Lax',                                                   //Protection from CSRF. None or lax supports most cross-origin use cases.
                 maxAge: 3600000,                                                                                                            //Token validity in millisecond. Setting this to cookies.
-            }).status(201).send({token, success: true, message: "Login Successful, JWT stored in Cookie!"});
+            }).status(201).send({ token, success: true, message: "Login Successful, JWT stored in Cookie!" });
         })
 
 
@@ -130,7 +130,7 @@ async function run() {
                 secure: process.env.NODE_ENVIRONMENT === 'production',                                                                      //Set false while in dev environment, and true while in production.
                 sameSite: process.env.NODE_ENVIRONMENT === 'production' ? 'none' : 'Lax',                                                   //Protection from CSRF. None or lax supports most cross-origin use cases.
                 maxAge: 0,                                                                                                                  //Token validity in millisecond. Setting this to cookies.
-            }).status(200).send({success: true, message: "Logout successful, cookie cleared!"});
+            }).status(200).send({ success: true, message: "Logout successful, cookie cleared!" });
         });
 
 
@@ -148,89 +148,16 @@ async function run() {
         app.post('/users/add_new_user', async (req, res) => {
             try {
                 const { newUser } = req.body;
+                const result = await userCollection.insertOne(newUser);
+                if (result) {
 
-                // Input validation
-                if (!newUser || !newUser.email) {
-                    return res.status(400).send({ status: 400, message: "newUser and email are required!" });
+
+
+
+                    res.send({ status: 201, message: "User created successfully." });
                 }
-
-                // Check if user already exists
-                const existingUser = await userCollection.findOne({ email: newUser?.email });
-                if (existingUser) {
-                    return res.status(409).send({ status: 409, message: "User with this email already exists!" });
-                }
-
-                // Insert new user
-                const userResult = await userCollection.insertOne(newUser);
-                if (!userResult.insertedId) {
-                    return res.status(500).send({ status: 500, message: "Failed to insert user!" });
-                }
-
-                // Insert message chain
-                const messageChain = {
-                    user_email: newUser.email,
-                    message_chain: []
-                };
-                const messageResult = await messagesCollection.insertOne(messageChain);
-                if (!messageResult.insertedId) {
-                    await userCollection.deleteOne({ _id: userResult.insertedId });
-                    return res.status(500).send({ status: 500, message: "Failed to create message chain!" });
-                }
-
-                // Update user with messageChain_id
-                await userCollection.updateOne(
-                    { _id: userResult.insertedId },
-                    { $set: { messageChain_id: messageResult.insertedId.toString() } }
-                );
-
-                // Insert notification chain
-                const notificationChain = {
-                    user_email: newUser.email,
-                    notification_chain: []
-                };
-                const notificationResult = await notificationsCollection.insertOne(notificationChain);
-                if (!notificationResult.insertedId) {
-                    await userCollection.deleteOne({ _id: userResult.insertedId });
-                    await messagesCollection.deleteOne({ _id: messageResult.insertedId });
-                    return res.status(500).send({ status: 500, message: "Failed to create notification chain!" });
-                }
-
-                // Update user with notificationChain_id
-                await userCollection.updateOne(
-                    { _id: userResult.insertedId },
-                    { $set: { notificationChain_id: notificationResult.insertedId.toString() } }
-                );
-
-                // Insert activity history chain
-                const activityHistoryChain = {
-                    user_email: newUser.email,
-                    activityHistory_chain: []
-                };
-                const activityHistoryResult = await activityHistoriesCollection.insertOne(activityHistoryChain);
-                if (!activityHistoryResult.insertedId) {
-                    await userCollection.deleteOne({ _id: userResult.insertedId });
-                    await messagesCollection.deleteOne({ _id: messageResult.insertedId });
-                    await notificationsCollection.deleteOne({ _id: notificationResult.insertedId });
-                    return res.status(500).send({ status: 500, message: "Failed to create activity history chain!" });
-                }
-
-                // Update user with activityHistoryChain_id
-                await userCollection.updateOne(
-                    { _id: userResult.insertedId },
-                    { $set: { activityHistoryChain_id: activityHistoryResult.insertedId.toString() } }
-                );
-
-                return res.send({
-                    status: 201,
-                    data: { userId: userResult.insertedId },
-                    message: "User created successfully."
-                });
             } catch (error) {
-                console.error(error);
-                if (error.message.includes("already exists")) {
-                    return res.send({ status: 409, message: "User with this email already exists!" });
-                }
-                return res.send({ status: 500, message: error.message || "Internal Server Error" });
+                res.send({ status: 500, message: "Internal Server Error" });
             }
         });
 
@@ -254,45 +181,8 @@ async function run() {
             const query = { email: email };
             const result = await userCollection.findOne(query);
             // res.status(200).send(result);
-            res.send({status: 200, data: result, message: 'Login successful!'});
+            res.send({ status: 200, data: result, message: 'Login successful!' });
         })
-
-
-        // TODO: JWT verification will be added later.
-        app.post('/users/get_full_user_profile_details', async (req, res) => {
-            try {
-                const { userEmail } = req.body;
-
-                // Input validation
-                if (!userEmail) {
-                    return res.send({ status: 400, message: "Email is required!" });
-                }
-
-                // Verifying user authenticity
-                /*const { decoded_email } = req;
-                if (userEmail !== decoded_email) {
-                    return res.send({ status: 403, message: "Forbidden access, email mismatch!" });
-                }*/
-
-                // Find the user
-                const userQuery = { email: userEmail };
-                const userResult = await userCollection.findOne(userQuery);
-
-                // Check if user exists
-                if (!userResult) {
-                    return res.send({ status: 404, message: "User not found!" });
-                }
-
-                // Filter sensitive data (can also be password, tokens)
-                const { _id, uid, ...filteredUserData } = userResult;
-
-                return res.send({status: 200, data: filteredUserData, message: "Full user details fetched successfully!"});
-
-            } catch (error) {
-                console.error(error);
-                return res.send({ status: 500, message: "Something went wrong!" });
-            }
-        });
 
 
         // TODO: JWT verification will be added later.
@@ -370,8 +260,8 @@ async function run() {
                 // Loop through each category
                 for (const category of categories) {
                     const gadgets = await gadgetsCollection
-                        .find({category}) // Filter by category
-                        .sort({totalRentalCount: -1}) // Sort by popularity (descending)
+                        .find({ category }) // Filter by category
+                        .sort({ totalRentalCount: -1 }) // Sort by popularity (descending)
                         .limit(3) // Top 3 only
                         .toArray();
 
@@ -450,7 +340,8 @@ async function run() {
                 res.send({
                     status: 200,
                     data: gadgetResult,
-                    message: 'Gadget details by id fetched successfully!' });
+                    message: 'Gadget details by id fetched successfully!'
+                });
             } else {
                 res.send({
                     status: 404,
